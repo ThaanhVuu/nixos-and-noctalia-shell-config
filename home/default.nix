@@ -7,6 +7,7 @@
 
   # ── Packages ──────────────────────────────────────────────────────────────
   home.packages = with pkgs; [
+    jetbrains.idea
     tree
     p7zip
     python3
@@ -37,15 +38,22 @@
     interactiveShellInit = ''
       fastfetch
       starship init fish | source
-      # pnpm
-      set -gx PNPM_HOME "$HOME/.local/share/pnpm"
-      fish_add_path $PNPM_HOME
-
+      
       # fnm
       fnm env --use-on-cd --shell fish | source
     '';
   };
 
+  home.sessionVariables = {
+    PNPM_HOME = "$HOME/.local/share/pnpm";
+    JAVA_HOME = "${pkgs.jdk11}";
+  };
+  
+  home.sessionPath = [
+    "$HOME/.local/share/pnpm"
+    "$HOME/.local/share/pnpm/bin"
+  ];
+  
   # ── Noctalia (Quickshell/QML bar) ─────────────────────────────────────────
   programs.noctalia = {
     enable = true;

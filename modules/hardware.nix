@@ -55,4 +55,16 @@
     ENV{ID_FS_UUID}=="25B569AE0C63D6C1", ENV{UDISKS_SYSTEM}="0", ENV{UDISKS_AUTO}="1"
     ENV{ID_FS_UUID}=="17C1242D58741CE1", ENV{UDISKS_SYSTEM}="0", ENV{UDISKS_AUTO}="1"
   '';
+
+  services.ollama = {
+    enable = true;
+    package = pkgs.ollama-cuda;
+    environmentVariables = {
+      OLLAMA_NUM_GPU = "15";
+      __NV_PRIME_RENDER_OFFLOAD = "1";
+      __NV_PRIME_RENDER_OFFLOAD_PROVIDER = "NVIDIA-G0";
+      __GLX_VENDOR_LIBRARY_NAME = "nvidia";
+      __VK_LAYER_NV_optimus = "NVIDIA_only";
+    };
+  };
 }
