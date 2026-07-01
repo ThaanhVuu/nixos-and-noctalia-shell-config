@@ -26,12 +26,9 @@
     # ── Desktop / WM ──────────────────────────────────────────
     ../../modules/desktop/niri.nix
     ../../modules/desktop/greeter.nix
-    ../../modules/desktop/input-method.nix
 
     # ── User ──────────────────────────────────────────────────
     ../../modules/users.nix
-
-    inputs.fcitx5-lotus.nixosModules.fcitx5-lotus
   ];
 
   system.stateVersion = "26.05";
