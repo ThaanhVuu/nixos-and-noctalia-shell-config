@@ -9,7 +9,7 @@
     ./hardware.nix   # auto-generated, KHÔNG sửa tay
 
     # ── Core hệ thống ─────────────────────────────────────────
-    ../../modules/core/boot.nix
+    ../../modules/core/boot.nix`
     ../../modules/core/nix.nix
     ../../modules/core/locale.nix
     ../../modules/core/networking.nix
