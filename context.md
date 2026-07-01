@@ -1,28 +1,78 @@
-# NixOS Config — Context
+# NixOS Config — Bản đồ
 
-## Tổng quan
-
-Single-host NixOS flake config cho máy **ASUS TUF F15** (Intel i7 + RTX 3060 Mobile),
-chạy **Niri WM** + **Noctalia shell**, với Home Manager quản lý user environment.
-
-```
-flake.nix
-  └── hosts/thanhvu/default.nix
-        ├── hosts/thanhvu/hardware.nix   ← auto-generated, không sửa
-        ├── modules/system.nix
-        ├── modules/hardware.nix
-        ├── modules/desktop.nix
-        ├── modules/users.nix
-        └── home-manager → home/default.nix
-```
+Máy **ASUS TUF F15** (Intel i7 + RTX 3060 Mobile), **Niri WM** + **Noctalia shell**,
+Home Manager quản lý user environment.
 
 ---
 
-## flake.nix
+## Tra nhanh: muốn sửa gì → mở file nào
 
-Entry point. Khai báo inputs và wire mọi thứ lại.
+| Muốn sửa...                                       | File                                  |
+|----------------------------------------------------|----------------------------------------|
+| Bootloader, kernel, swap                            | `modules/core/boot.nix`                |
+| Nix daemon: flakes, GC, allowUnfree, nix-ld         | `modules/core/nix.nix`                 |
+| Timezone, locale, layout bàn phím                   | `modules/core/locale.nix`              |
+| Hostname, SSH, firewall, Caddy reverse proxy        | `modules/core/networking.nix`          |
+| Driver NVIDIA, Prime offload                        | `modules/hardware/gpu.nix`             |
+| Audio (PipeWire), Bluetooth                         | `modules/hardware/audio.nix`           |
+| NTFS, mount ổ Windows, Nautilus                     | `modules/hardware/storage.nix`         |
+| Docker                                              | `modules/services/docker.nix`          |
+| Ollama / local LLM                                  | `modules/services/ollama.nix`          |
+| Niri WM                                             | `modules/desktop/niri.nix`             |
+| Màn hình login (Noctalia greeter)                   | `modules/desktop/greeter.nix`          |
+| **Bộ gõ tiếng Việt (Fcitx5 + Lotus)**                | `modules/desktop/input-method.nix`     |
+| User account, shell mặc định                        | `modules/users.nix`                    |
+| Bật/tắt module nào đang active                      | `hosts/thanhvu/default.nix`            |
+| Thêm/bớt flake input (repo nguồn)                    | `flake.nix`                            |
+| Package cài cho user, JAVA_HOME, PNPM PATH           | `home/packages.nix`                    |
+| Alias, cấu hình Fish shell                           | `home/shell.nix`                       |
+| Noctalia shell (bar), cursor theme                   | `home/desktop.nix`                     |
+| `hardware.nix` (auto-gen)                            | **không sửa tay**, do `nixos-generate-config` sinh |
 
-**Inputs:**
+Không nhớ nằm đâu → `rg -l "tên_thứ_cần_tìm" ~/nixos` (alias `nix-find`, xem cuối file).
+
+---
+
+## Sơ đồ cây
+
+```
+flake.nix
+home/
+  default.nix          # entry point, import 3 file dưới
+  packages.nix          # packages, PNPM_HOME, JAVA_HOME
+  shell.nix              # Fish: alias, startup
+  desktop.nix            # Noctalia shell, cursor, udiskie
+hosts/thanhvu/
+  default.nix            # entry point — LIST TOÀN BỘ MODULE ĐANG BẬT
+  hardware.nix            # auto-generated, không sửa
+modules/
+  users.nix
+  core/
+    boot.nix
+    nix.nix
+    locale.nix
+    networking.nix
+  hardware/
+    gpu.nix
+    audio.nix
+    storage.nix
+  services/
+    docker.nix
+    ollama.nix
+  desktop/
+    niri.nix
+    greeter.nix
+    input-method.nix
+```
+
+**Nguyên tắc:** 1 file = 1 concern. Tên file = đúng thứ nó chứa, không cần đoán.
+`hosts/thanhvu/default.nix` là công tắc tổng — đọc file này là biết ngay
+những gì đang bật và path của từng cái, không cần nhớ.
+
+---
+
+## flake.nix — inputs
+
 | Input | Source |
 |---|---|
 | `nixpkgs` | `nixos-unstable` |
@@ -31,86 +81,34 @@ Entry point. Khai báo inputs và wire mọi thứ lại.
 | `noctalia-greeter` | `noctalia-dev/noctalia-greeter` (login screen) |
 | `fcitx5-lotus` | `LotusInputMethod/fcitx5-lotus` (Vietnamese IME) |
 
-Dùng Cachix binary cache `noctalia.cachix.org` để tránh build noctalia từ source.
-
-**Output:** một `nixosConfiguration` duy nhất tên `nixos`, system `x86_64-linux`.
-
----
-
-## hosts/thanhvu/
-
-Config riêng cho host này. Nếu sau này thêm máy khác thì tạo `hosts/may-khac/` tương tự.
-
-- **`default.nix`** — import tất cả modules + `fcitx5-lotus.nixosModules`, set `system.stateVersion = "26.05"`.
-- **`hardware.nix`** — do `nixos-generate-config` sinh ra, **không sửa tay**. Chứa:
-  - kernel modules (xhci, thunderbolt, nvme, ...)
-  - filesystem mounts: `/` (ext4), `/boot` (vfat/EFI)
-  - 3 NTFS partitions dual-boot Windows: `/mnt/win-c`, `/mnt/win-d`, `/mnt/win-small` — mount lazy với `x-systemd.automount` + `nofail`
+Cachix `noctalia.cachix.org` để tránh build noctalia từ source.
+Output: 1 `nixosConfiguration` tên `nixos`, system `x86_64-linux`.
 
 ---
 
-## modules/system.nix
+## Ghi chú riêng từng phần
 
-Boot, Nix daemon, locale, networking.
+**`modules/core/networking.nix`** — ngoài SSH/firewall còn có Caddy reverse proxy
+cho 2 domain dev local: `academy.local` → `:3001`, `club.local` → `:3002`.
 
-- **Boot:** `linuxPackages_latest`, systemd-boot, `zramSwap`
-- **Nix:** flakes enabled, `allowUnfree`, auto GC weekly (xóa generation > 30 ngày), `nix-ld` (chạy dynamic binary không cần patch)
-- **Locale:** timezone `Asia/Ho_Chi_Minh`, UI `en_US.UTF-8`, các `LC_*` set `vi_VN`, keyboard layout `us`
-- **Networking:** hostname `thanhvu`, NetworkManager, SSH mở port 22
+**`modules/hardware/gpu.nix`** — Intel iGPU (`PCI:0:2:0`) chạy chính, RTX 3060
+(`PCI:1:0:0`) offload theo yêu cầu qua `nvidia-offload <app>`. Driver `stable`,
+`open = true` (kernel module open-source).
 
----
+**`modules/hardware/storage.nix`** — udev rules hard-code UUID của 3 partition
+NTFS dual-boot Windows để hiện trong Nautilus sidebar. Nếu cài lại Windows /
+đổi ổ cứng, UUID sẽ đổi → phải cập nhật lại 3 dòng UUID trong file này
+(chạy `lsblk -f` để lấy UUID mới).
 
-## modules/hardware.nix
+**`modules/services/ollama.nix`** — chạy qua CUDA, ép offload qua RTX 3060
+bằng biến `__NV_PRIME_RENDER_OFFLOAD`. Nếu đổi model / cần thêm VRAM config,
+sửa `OLLAMA_NUM_GPU` ở đây.
 
-Driver và phần cứng.
-
-- **NVIDIA Prime Offload:** Intel iGPU (`PCI:0:2:0`) chạy chính, RTX 3060 (`PCI:1:0:0`) offload theo yêu cầu. Driver `stable`, `open = true` (open-source kernel module). VAAPI driver nvidia cho hardware decode.
-- **Audio:** PipeWire + ALSA + PulseAudio compat + rtkit. Bluetooth bật. `power-profiles-daemon` + `upower`.
-- **Storage:** NTFS support (`ntfs3g`), GVfs, udisks2, Polkit, dconf, `programs.niri.useNautilus`. udev rules expose 3 Windows NTFS partitions vào Nautilus sidebar (`UDISKS_AUTO=1`).
-
----
-
-## modules/desktop.nix
-
-WM, greeter, input method.
-
-- **Niri WM:** `programs.niri.enable = true`
-- **Noctalia Greeter:** login screen lấy package từ flake input
-- **Fcitx5 + Lotus:** Vietnamese IME qua `services.fcitx5-lotus`, addon `fcitx5-gtk` + `fcitx5-qt` + `fcitx5-lotus`. Session variables `GTK_IM_MODULE`, `QT_IM_MODULE`, `XMODIFIERS`, `SDL_IM_MODULE` đều set `fcitx`.
-
----
-
-## modules/users.nix
-
-User, shell, Docker.
-
-- **User `thanhvu`:** groups `networkmanager` + `wheel` (sudo), default shell Fish
-- **Fish:** `programs.fish.enable = true` ở system level (bắt buộc khi dùng Fish làm login shell)
-- **Docker rootless:** `virtualisation.docker.rootless`, kernel module `overlay`, cài `docker-compose` + `docker-buildx`. Aliases: `dc`, `dps`.
-
----
-
-## home/default.nix
-
-Home Manager — quản lý user-level packages và dotfiles.
-
-**Packages cài:**
-- Dev tools: `git`, `fnm`, `pnpm`, `vscode`, `jetbrains.webstorm`, `bruno`
-- Terminal: `kitty`, `fish`, `starship`, `fastfetch`, `btop`
-- Apps: `firefox`, `nautilus`, `p7zip`, `python3`, `tree`
-- Font: `nerd-fonts.jetbrains-mono`
-
-**Fish config:**
-- `fastfetch` + `starship` khởi động cùng shell
-- pnpm PATH (`~/.local/share/pnpm`)
-- fnm auto-use Node version theo `.nvmrc`/`.node-version`
-- Aliases: `nix-rebuild`, `nix-garbage`, `nix-edit`, `niri-edit`
-
-**Noctalia shell:** `programs.noctalia.enable = true` (Quickshell/QML bar)
-
-**Cursor:** Bibata-Modern-Ice size 24
-
-**udiskie:** auto-mount removable drives
+**`modules/desktop/input-method.nix`** — bộ gõ tiếng Việt Fcitx5 + Lotus.
+Input `fcitx5-lotus` được khai báo ở `flake.nix`, và module NixOS của nó
+(`inputs.fcitx5-lotus.nixosModules.fcitx5-lotus`) được import riêng trong
+`hosts/thanhvu/default.nix` (không nằm trong `modules/`, vì đó là module
+tới từ flake input, không phải module tự viết).
 
 ---
 
@@ -119,20 +117,22 @@ Home Manager — quản lý user-level packages và dotfiles.
 ```bash
 # Rebuild
 sudo nixos-rebuild switch --flake ~/nixos#nixos
-# hoặc alias:
-nix-rebuild
+nix-rebuild          # alias
 
 # GC
 nix-garbage
 
 # Edit config
-nix-edit       # mở ~/nixos trong VSCode
-niri-edit      # mở ~/.config/niri trong VSCode
+nix-edit              # mở ~/nixos trong VSCode
+niri-edit              # mở ~/.config/niri trong VSCode
+
+# Tìm nhanh 1 setting nằm ở file nào
+nix-find "từ_khoá"          # alias, = rg -l --type nix ~/nixos
 
 # Chạy app bằng RTX
 nvidia-offload <app>
 
 # Docker
-dc up -d       # docker compose up -d
-dps            # docker ps
+dc up -d
+dps
 ```
