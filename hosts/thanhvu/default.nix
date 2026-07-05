@@ -26,7 +26,8 @@
     # ── Desktop / WM ──────────────────────────────────────────
     ../../modules/desktop/niri.nix
     ../../modules/desktop/greeter.nix
-
+    ../../modules/desktop/input-method.nix
+    
     # ── User ──────────────────────────────────────────────────
     ../../modules/users.nix
   ];
